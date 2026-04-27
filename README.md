@@ -79,6 +79,62 @@ tc-agent-skills/
 /plugin marketplace update tc-agent-skills
 ```
 
+## 本地开发（贡献者 / 二次开发）
+
+如果你要本地修改命令并立刻在自己 Claude Code 里生效（不通过 marketplace），推荐用 **symlink 方案**：让 `~/.claude/commands/tc-*` 与 `~/.claude/skills/tc-*` 直接指向本仓库，改一处两边都更新，永远不漂移。
+
+### 一键设置
+
+```bash
+PLUGIN="$(pwd)"   # 在本仓库根目录执行
+LOCAL="$HOME/.claude"
+
+# 替换 commands 文件
+for f in tc-init.md tc-prd.md tc-ai.md tc-discuss.md; do
+  rm -f "$LOCAL/commands/$f"
+  ln -s "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
+done
+
+# 替换 commands/tc-ai-nodes 整个目录
+rm -rf "$LOCAL/commands/tc-ai-nodes"
+ln -s "$PLUGIN/commands/tc-ai-nodes" "$LOCAL/commands/tc-ai-nodes"
+
+# 替换 skills 目录
+for s in tc-frontend-engineer tc-qa-engineer tc-doc-syncer; do
+  rm -rf "$LOCAL/skills/$s"
+  ln -s "$PLUGIN/skills/$s" "$LOCAL/skills/$s"
+done
+
+ls -la "$LOCAL/commands/"tc-* "$LOCAL/skills/"tc-*  # 验证 symlink
+```
+
+### 工作流
+
+```
+本仓库 commands/tc-init.md   ← 唯一来源
+       ↑↓ symlink
+~/.claude/commands/tc-init.md ← 本地立刻生效
+```
+
+- 在任一处编辑文件 = 改的是同一份内容
+- 提交 git = 直接在本仓库 `git commit`，无需「同步」步骤
+- 如果未来本仓库移动到别的路径 → symlink 会断；重跑上面脚本即可
+
+### 解除 symlink（恢复独立副本）
+
+如果想撤销 symlink 改回独立副本：
+
+```bash
+LOCAL="$HOME/.claude"
+PLUGIN="/path/to/tc-agent-skills"  # 改成本仓库实际路径
+
+for f in tc-init.md tc-prd.md tc-ai.md tc-discuss.md; do
+  rm "$LOCAL/commands/$f"
+  cp "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
+done
+# tc-ai-nodes 与 skills 同理用 cp -r
+```
+
 ## License
 
 MIT

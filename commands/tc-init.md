@@ -2,13 +2,63 @@
 description: 项目 .claude 初始化 — 生成 CLAUDE.md 与 rules/
 ---
 
-# /tc-init — 项目 .claude 初始化
+# /tc-init — 项目 .claude 初始化（增量友好）
 
-你是一个项目配置初始化助手。你的任务是在当前项目目录中创建 `.claude/` 文件夹及其完整配置结构。
+你是一个项目配置初始化助手。你的任务是为当前项目创建/补全 `.claude/` 文件夹的配置结构。
 
-> 💡 完整工作流：**`/tc-init`（本命令，一次性）** → [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）
+> 💡 完整工作流：**`/tc-init`（本命令）** → [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）
+
+## 🛡 核心原则：增量处理，绝不覆盖
+
+`.claude/` 文件夹是项目级的多方共享空间，可能已经有：
+- 其它 Claude Code 插件 / Skill 写入的内容（如 `commands/`, `skills/`, `agents/`）
+- 团队成员之前手写的规则
+- IDE / 工具集成配置（如 `settings.json`, `settings.local.json`, `launch.json`）
+
+**绝对不允许覆盖任何已存在的文件**。本命令只做：
+
+| 现有状态 | 本命令的行为 |
+|---|---|
+| 文件**不存在** | ✅ 直接创建（标准目标） |
+| 文件**已存在且内容看起来合理** | ⏭ **跳过**，输出"已存在，跳过 {path}" |
+| 文件**已存在但内容明显与本命令的目标格式冲突** | ⚠️ 输出 diff 给用户看，**不修改**，让用户自行合并 |
+| 不属于本命令产出的文件（commands/、skills/、agents/、*.json）| 🚫 完全不碰 |
+
+任何「**不知道该不该改**」的情况 → **跳过 + 提示用户**，不要自作主张。
 
 ## 执行步骤
+
+### 0. 扫描现有 `.claude/` 状态（**必跑，不可跳过**）
+
+如果 `.claude/` 已存在：
+
+1. 列出所有已有文件 / 子目录（含其它插件可能写入的）
+2. 对每个**本命令计划生成**的目标文件，标记状态：
+   - ✅ **缺失** → 待创建
+   - ⏭ **已存在** → 跳过（默认行为）
+   - ⚠️ **存在但格式异常** → 仅生成 diff 报告，不修改
+
+3. 输出一份「现有状态清单」给用户看，例如：
+
+```text
+.claude/ 现有内容扫描：
+
+✅ 待创建：
+  - CLAUDE.md
+  - rules/coding-style.md
+
+⏭ 已存在，跳过：
+  - rules/testing.md（4.2KB，最后修改 3 天前）
+
+🚫 非本命令管辖，完全不碰：
+  - commands/ (其它插件)
+  - skills/ (其它插件)
+  - settings.json
+  - settings.local.json
+
+⚠️ 待人工合并（已存在但与目标格式冲突）：
+  - 无
+```
 
 ### 1. 分析项目
 
@@ -19,9 +69,9 @@ description: 项目 .claude 初始化 — 生成 CLAUDE.md 与 rules/
 - 读取现有的 README、CI 配置、lint 配置、tsconfig 等，提取构建/测试/运行命令
 - 识别项目是否包含前端、后端 API、数据库等模块
 
-### 2. 生成文件结构
+### 2. 增量生成文件结构
 
-根据分析结果，生成以下结构（只创建与项目相关的文件）：
+**只创建 Step 0 标为「✅ 待创建」的文件**，已存在的一律跳过。完整目标结构如下（仅供对比参考）：
 
 ```
 .claude/
@@ -36,6 +86,24 @@ description: 项目 .claude 初始化 — 生成 CLAUDE.md 与 rules/
 │   ├── database.md              # (如有数据库) paths: src/db/**, migrations/**
 │   └── smart-contract.md        # (如有合约) paths: contracts/**, src/contracts/**
 ```
+
+⚠️ **特殊情况：CLAUDE.md 已存在**
+
+`CLAUDE.md` 是高频被多方修改的文件（IDE 插件 / 团队成员 / 历史 init）。本命令处理逻辑：
+
+1. 默认**不覆盖**，输出"已存在，跳过"
+2. **如果用户明确要求**（"检查 CLAUDE.md 是否完整"），生成一份 **diff 报告**：
+   - 当前 CLAUDE.md 缺哪些章节（技术栈 / 常用命令 / 目录结构 / 规则）
+   - 建议补充内容
+3. **diff 报告以 markdown 形式输出给用户复制粘贴**，**不直接修改文件**
+
+⚠️ **特殊情况：rules/ 下某些文件已存在但部分缺失**
+
+举例：项目里有 `rules/coding-style.md` 但没有 `rules/testing.md`：
+
+1. 不动 `coding-style.md`
+2. 创建 `rules/testing.md`
+3. 不修改 `CLAUDE.md` 的 `@rules/...` 引用列表（避免覆盖）；改为输出建议给用户：「请手动在 CLAUDE.md 「## 规则」节加 `@rules/testing.md`」
 
 ### 3. CLAUDE.md 模板
 
@@ -105,8 +173,51 @@ globs: {可选，如 "src/web/**"}
 
 ## 重要约束
 
-- 如果 `.claude/` 已存在，先告知用户并询问是否覆盖
+### 🛡 增量处理强制约束（不可绕过）
+
+- ❌ **绝对不覆盖任何已存在文件**（即使内容看起来"陈旧"或"过时"）
+- ❌ **绝对不删除 `.claude/` 下任何现有文件 / 子目录**
+- ❌ **绝对不修改 `commands/`、`skills/`、`agents/`、`settings.json`、`settings.local.json`、`launch.json` 等非本命令产物**
+- ✅ 只创建 **Step 0 扫描后标为「✅ 待创建」** 的文件
+- ⚠️ 已存在但格式异常的文件 → 输出 diff 报告**给用户**，**不自行修改**
+- ⚠️ 任何不确定情况 → **跳过 + 输出提示**，不要自作主张
+
+### 内容质量约束
+
 - 所有规则内容必须基于项目实际情况推断，不要生成空洞的通用规则
-- CLAUDE.md 严格控制在 150 行以内
+- CLAUDE.md 严格控制在 150 行以内（仅当 CLAUDE.md 是本次新建时生效）
 - 只创建与项目实际相关的 rules 文件，不要创建不适用的文件
-- 生成完成后，列出所有创建的文件并给出简要说明
+
+### 输出约束
+
+- 生成完成后，**分三类列出**：
+  - ✅ 本次新建的文件
+  - ⏭ 跳过的已存在文件
+  - ⚠️ 建议用户手动处理的项（diff 报告 / 待补 @rules 引用 等）
+
+## 示例输出
+
+```text
+🎯 tc-init 完成
+
+✅ 本次新建（3 个）：
+  - .claude/CLAUDE.md (148 行)
+  - .claude/rules/testing.md
+  - .claude/rules/git-workflow.md
+
+⏭ 跳过已存在（2 个）：
+  - .claude/rules/coding-style.md
+  - .claude/rules/security.md
+
+⚠️ 建议手动处理（1 项）：
+  - 现有 .claude/rules/coding-style.md 没有 frontmatter（description / globs），建议补全
+    （diff 见下方）
+
+🚫 完全未触碰（4 个）：
+  - .claude/commands/   （其它插件）
+  - .claude/skills/     （其它插件）
+  - .claude/settings.local.json
+  - .claude/launch.json
+
+下一步：跑 /tc-discuss 开始第一个 feature 需求澄清
+```
