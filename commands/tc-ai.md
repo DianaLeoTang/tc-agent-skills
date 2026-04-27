@@ -15,13 +15,15 @@ description: 自动开发 — 按节点流程执行 specs 任务
 
 ## 流程图
 
-按此流程执行，到达每个节点时读取项目的 `.claude/commands/tc-ai-nodes/` 下对应的节点文件获取详细规则。
+按此流程执行，到达每个节点时按优先级读取节点文件获取详细规则：
+1. 代码项目 `.claude/commands/tc-ai-nodes/`（项目级覆盖，可选）
+2. 全局 `.claude/commands/tc-ai-nodes/`（默认）
 
 ```text
 START
   │
   ▼
-[N1: 初始化] ── 解析输入、扫描 features、加载上下文
+[N1: 初始化] ── 解析输入、扫描 features、加载项目约束规则
   │
   ▼
 ┌─► [N2: 进入 Feature] ── 读取 specs、分析依赖、输出执行计划
