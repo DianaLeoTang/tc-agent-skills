@@ -36,15 +36,37 @@ description: 需求文档 → specs 三件套生成（支持新建与变更）
 
 ## 新建模式
 
-### Step 1: 解析输入，读取需求文档
+### Step 1: 解析输入，确定 `tc-spec/` 目录
 
-从 `$ARGUMENTS` 提取项目文件夹路径，记为 `SPECS_DIR`。
+从 `$ARGUMENTS` 提取项目文件夹路径，记为 `PROJECT_DIR`。
 
-读取 `{SPECS_DIR}/docs/` 下的所有文件作为需求源：
+**确定 specs 输出目录**（强制收敛，不得散落在项目根目录）：
+
+1. 检查项目根目录是否存在 `docs/` 或 `doc/` 文件夹
+2. 若存在 → 在其下创建/使用 `tc-spec/` 子目录
+3. 若不存在 → 在项目根目录创建 `docs/` 文件夹，并在其下创建 `tc-spec/` 子目录
+
+记为 `SPECS_DIR = {PROJECT_DIR}/docs/tc-spec/`。
+
+读取 `SPECS_DIR` 下的需求文档（`feature-*.md`）作为输入源：
 
 - 支持 `.md`、`.txt`、`.pdf` 等文档格式
-- 如果 docs/ 下有多个文件，全部读取并综合分析
-- 如果 docs/ 不存在或为空，报错提示用户先在 docs/ 下放入需求文档
+- 如果有多个文件，全部读取并综合分析
+- 如果无需求文档，报错提示用户先放入需求文档
+
+```text
+{PROJECT_DIR}/
+├── docs/（或 doc/）/
+│   ├── 已有项目文档...              ← 项目原有内容不动
+│   └── tc-spec/                    ← 需求 & specs 统一收敛地
+│       ├── feature-1-xxx.md        ← /tc-discuss 生成的需求文档
+│       ├── 1.jiyuan-channel/       ← /tc-prd 生成的 specs 三件套
+│       │   ├── requirements.md
+│       │   ├── design.md
+│       │   └── tasks.md
+│       └── 2.xxx/
+└── ...
+```
 
 ### Step 2: 获取项目名称
 
@@ -108,7 +130,6 @@ description: 需求文档 → specs 三件套生成（支持新建与变更）
 
 ```text
 {SPECS_DIR}/
-├── docs/                        ← 需求文档（输入）
 ├── 1.比如这是一个已有的标题/     ← 已有 specs
 └── 2.{feature-name}/            ← 本次新建
     ├── requirements.md          ⚠️ 必须有

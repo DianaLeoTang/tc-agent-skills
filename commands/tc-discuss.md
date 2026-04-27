@@ -160,12 +160,22 @@ B. **还没决定、需要后续确认的事**（例如"卡密兑换还是支付
 
 直接进入 Step 4。
 
-### Step 4: 生成 docs/
+### Step 4: 生成需求文档
 
-按拆分结果生成 1 个或 N 个文件，命名规则：
+按拆分结果生成 1 个或 N 个文件。
+
+**确定输出目录**（强制收敛，不得散落在项目根目录）：
+
+1. 检查项目根目录是否存在 `docs/` 或 `doc/` 文件夹
+2. 若存在 → 在其下创建/使用 `tc-spec/` 子目录
+3. 若不存在 → 在项目根目录创建 `docs/` 文件夹，并在其下创建 `tc-spec/` 子目录
+
+记为 `DOCS_DIR = {PROJECT_DIR}/docs/tc-spec/`。
+
+命名规则：
 
 ```
-docs/feature-{N}-{kebab-case-name}.md
+{DOCS_DIR}/feature-{N}-{kebab-case-name}.md
 ```
 
 `N` 取 `NEXT_FEATURE_NUM`（多个 feature 顺延 N、N+1、N+2）。
@@ -244,12 +254,12 @@ docs/feature-{N}-{kebab-case-name}.md
 ✅ 需求澄清完成
 
 生成的 docs/ 文件：
-- docs/feature-{N}-{name}.md
+- {DOCS_DIR}/feature-{N}-{name}.md
 {如果拆分了多个，全部列出}
 
 下一步：
 1. （可选）打开上面文件人工微调，把"未明确"补全或保留
-2. 跑 `/tc-prd <项目路径>` 生成 specs 三件套
+2. 跑 `/tc-prd .` 生成 specs 三件套（会读取 `docs/tc-spec/feature-*.md`）
 3. 如果某个 feature 实际是改已有 feature → 改用 `/tc-prd --change`
 
 注：本次对话产生的 Q-XXX 待定问题会由 /tc-prd Step 5.5 再次确认。
