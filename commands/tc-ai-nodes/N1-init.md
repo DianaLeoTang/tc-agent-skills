@@ -21,7 +21,14 @@
 
 **⚠️ 关键约束**：步骤 4 中读取的项目 rules 文件，**必须在后续 N3（开发）和 N4（Review）中严格遵守**，不得违反。所有编码决策均需对照项目自身 rules 验证，而非依赖通用经验。
 
-**⚠️ 规则缺失处理**：若代码项目无 `.claude/rules/` 目录或目录为空，**暂停并提示用户先运行 `/tc-init` 生成项目规则文件**，不要在没有约束基线的情况下盲目开发。
+**⚠️ 规则自动生成**：若代码项目的 `.claude/rules/` 目录不存在或为空：
+
+1. 分析项目配置（`package.json` / `Cargo.toml` / `go.mod` / `pyproject.toml` 等），识别技术栈、框架、测试工具、lint 规则等
+2. 扫描项目目录结构，推断模块边界和分层
+3. 读取现有 lint / tsconfig / eslint / prettier 等配置文件，提取实际约定
+4. **自动生成匹配该项目技术栈的 rules 文件到 `.claude/rules/`**
+5. 生成后读取并加载，继续后续流程
+6. 退出消息中输出「🆕 自动生成 rules/：{N} 个文件」
 
 ## 退出消息（强制输出）
 
@@ -35,6 +42,7 @@
    - 2.{name} ({done}/{total} task)
    ...
 📚 上下文已加载: CLAUDE.md ✓ rules/ ({N}个) ✓ LESSONS.md {✓/—}
+   {如自动生成: 🆕 自动生成 rules/：{N} 个文件}
    规则清单:
    - {rule1.md} — {description}
    - {rule2.md} — {description}
