@@ -6,7 +6,7 @@ description: 项目 .claude 初始化 — 生成 CLAUDE.md 与 rules/
 
 你是一个项目配置初始化助手。你的任务是为当前项目创建/补全 `.claude/` 文件夹的配置结构。
 
-> 💡 完整工作流：**`/tc-init`（本命令）** → [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）→ [`/tc-test`](tc-test.md)（随时跑测试）
+> 💡 完整工作流：**`/tc-init`（本命令）** → [`/tc-test-setup`](tc-test-setup.md)（项目零测试设施时）→ [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）→ [`/tc-test`](tc-test.md)（随时跑测试）
 
 ## 🛡 核心原则：增量处理，绝不覆盖
 
@@ -164,7 +164,7 @@ globs: {可选，如 "src/web/**"}
 ### 5. 规则内容指引
 
 - **coding-style.md**: 从 eslint/prettier/editorconfig/rustfmt 等配置推断命名风格、缩进、import 排序、注释规范。如无配置则根据语言社区惯例设定。
-- **testing.md**: 从测试框架配置和现有测试推断测试规范、文件命名、覆盖率要求。
+- **testing.md**: **以项目实际使用的测试库为准**（Jest/Vitest/Playwright/Pytest/Go test/Foundry/Hardhat 等），从测试框架配置和现有测试推断测试规范、文件命名、覆盖率要求。**禁止套用通用模板或硬塞项目未使用的测试库**；项目混用多套时，按目录/模块分别说明。
 - **security.md**: 列出禁止硬编码密钥、环境变量处理、敏感文件 .gitignore 规则等。
 - **git-workflow.md**: 从 git 历史推断 commit 风格（conventional commits?），分支命名规范，PR 流程。
 - **frontend.md**: 组件规范、状态管理、路由约定等（仅当项目有前端时创建）。

@@ -20,6 +20,7 @@
 | 命令 | 用途 |
 | --- | --- |
 | `/tc-init` | 项目 `.claude` 初始化 — 生成 `CLAUDE.md` 与 `rules/`（增量友好，不覆盖现有内容） |
+| `/tc-test-setup` | 测试基础设施搭建 — 项目零测试设施时按实际栈推荐方案、用户确认后装依赖+配置+hello world |
 | `/tc-discuss` | 对话式需求澄清 — 一句话 + 多轮对话 → 结构化 `docs/feature-{name}.md` |
 | `/tc-prd` | 需求文档 → specs 三件套生成（支持新建与变更） |
 | `/tc-ai` | 自动开发 — 按节点流程执行 specs 任务 |
@@ -32,12 +33,15 @@
 | --- | --- |
 | `tc-frontend-engineer` | 前端工程师 — 自动适配项目技术栈（React/Vue/Svelte/Next.js 等），支持 Figma/Stitch 设计稿还原 |
 | `tc-qa-engineer` | QA 工程师 — 自动识别测试栈（Jest/Vitest/Playwright/Pytest/Go test/Foundry 等）、设计补充用例、跑测、形成 bug 闭环 |
+| `tc-test-architect` | 测试基础设施架构师 — 按项目实际栈推荐并搭建完整测试方案（依赖+目录+配置+hello world），强制用户确认 |
 | `tc-doc-syncer` | 文档同步 — 开发完成后自动更新 README、`.claude/` 配置、specs CHANGELOG，保持文档与代码一致 |
 
 ## 推荐工作流
 
 ```
 /tc-init             # 一次性：初始化项目 .claude
+  ↓
+/tc-test-setup       # 一次性（仅在项目零测试设施时）：搭测试基建
   ↓
 /tc-discuss          # 对话式澄清需求 → docs/feature-{name}.md
   ↓
@@ -50,9 +54,14 @@
 tc-doc-syncer        # 同步文档（由 tc-ai 自动触发或手动调用）
 ```
 
-**`/tc-test` 与 `tc-qa-engineer` 的区别**：
-- `tc-qa-engineer`（skill）— **设计** 新测试用例 + 跑测；由 `/tc-ai` 的 N6 节点自动触发
-- `/tc-test`（命令）— **只跑** 现有测试 + 结构化报告；由你随时手动调用
+**测试相关命令/skill 边界（避免混淆）**：
+
+| 名字 | 类型 | 触发 | 职责 |
+| --- | --- | --- | --- |
+| `/tc-test-setup` | 命令 | 用户手动（仅项目零测试设施时跑一次） | 搭基建：装依赖+写配置+建目录+hello world |
+| `tc-test-architect` | skill | 由 `/tc-test-setup` 调用 | 推荐方案 + 用户确认 + 执行搭建 |
+| `tc-qa-engineer` | skill | 由 `/tc-ai` N6 自动调 | **设计**业务测试用例（基于 specs AC-XXX）+ 跑测 + 闭环 bug |
+| `/tc-test` | 命令 | 用户手动随时调 | **只跑**现有测试，结构化报告 |
 
 ## 目录结构
 
@@ -62,6 +71,7 @@ tc-agent-skills/
 │   └── plugin.json
 ├── commands/
 │   ├── tc-init.md
+│   ├── tc-test-setup.md
 │   ├── tc-discuss.md
 │   ├── tc-prd.md
 │   ├── tc-ai.md
@@ -78,7 +88,8 @@ tc-agent-skills/
 └── skills/
     ├── tc-doc-syncer/SKILL.md
     ├── tc-frontend-engineer/SKILL.md
-    └── tc-qa-engineer/SKILL.md
+    ├── tc-qa-engineer/SKILL.md
+    └── tc-test-architect/SKILL.md
 ```
 
 ## 升级
@@ -98,7 +109,7 @@ PLUGIN="$(pwd)"   # 在本仓库根目录执行
 LOCAL="$HOME/.claude"
 
 # 替换 commands 文件
-for f in tc-init.md tc-prd.md tc-ai.md tc-discuss.md; do
+for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md; do
   rm -f "$LOCAL/commands/$f"
   ln -s "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
 done
@@ -108,7 +119,7 @@ rm -rf "$LOCAL/commands/tc-ai-nodes"
 ln -s "$PLUGIN/commands/tc-ai-nodes" "$LOCAL/commands/tc-ai-nodes"
 
 # 替换 skills 目录
-for s in tc-frontend-engineer tc-qa-engineer tc-doc-syncer; do
+for s in tc-frontend-engineer tc-qa-engineer tc-test-architect tc-doc-syncer; do
   rm -rf "$LOCAL/skills/$s"
   ln -s "$PLUGIN/skills/$s" "$LOCAL/skills/$s"
 done
@@ -136,7 +147,7 @@ ls -la "$LOCAL/commands/"tc-* "$LOCAL/skills/"tc-*  # 验证 symlink
 LOCAL="$HOME/.claude"
 PLUGIN="/path/to/tc-agent-skills"  # 改成本仓库实际路径
 
-for f in tc-init.md tc-prd.md tc-ai.md tc-discuss.md; do
+for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md; do
   rm "$LOCAL/commands/$f"
   cp "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
 done
