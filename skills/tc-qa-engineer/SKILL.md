@@ -28,12 +28,53 @@ description: QA 工程师 Skill，对当前 task 或 feature 做功能级测试 
 | 普通 task QA | N6（每个 task 后默认必触发） | 当前 task 的 `git diff` | 一次 Skill 调用处理本 task 全部 diff 文件 |
 | 历史欠债补齐 | N2（进入 feature 时审计） | N2 给出的"欠债文件清单" | **每个文件一个独立子 agent**（N2 用 Agent 工具 fan-out 派发，子 agent 内部参考本 SKILL.md 工作流），单子 agent 只对**单一文件**负责 |
 
-> 🔑 **单文件子 agent 模式（N2 派发）**：
-> - 子 agent 收到的 prompt 锁定 `source_file = <一个文件>`
-> - 子 agent 必须返回严格 JSON：`{ source_file, test_files_written: [...], test_cases_added, ran, passed, failed_cases, impact_callers_covered, notes }`
-> - `test_files_written` **不能为空数组**（至少落盘 1 个测试文件），`ran: true && passed: true` 才算通过
-> - 子 agent 不准声称"该文件不需要测试" — 既然在欠债清单里就必须写
-> - N2 在退出校验时机械核对每个文件是否真的有对应测试落盘，不信子 agent 的自我汇报
+### 单文件子 agent 调用契约（N2 派发使用）
+
+子 agent 收到 N2 的简短 prompt 后，按本契约自我展开执行。**N2 的 prompt 只传字段，不展开工作流** — 工作流以本节为唯一权威。
+
+#### 输入字段（N2 prompt 必传）
+
+- `source_file` — 单个绝对路径
+- `specs` — requirements.md / design.md / tasks.md 绝对路径
+- `accumulated_changes` — 本分支累积变更文件列表（用于影响面分析参考）
+- `feature_finalizing` — true / false
+
+#### 子 agent 必须按顺序做
+
+1. Read 项目 `.claude/rules/testing.md` / `qa.md`（如存在），跟随项目测试约定
+2. Read `specs` 三件套，提取相关 AC-xxx 与接口契约
+3. Read `source_file` 实现，理解行为
+4. Bash 跑 grep 找 source_file 的所有调用方/导入方，列出影响面
+5. 按本 SKILL.md 工作流的「2.5 影响面分析」「3 测试设计」「4 测试代码落盘 + 执行」执行：
+   - 选定测试栈与文件命名（按项目惯例）
+   - 设计行为点（happy / 边界 / 错误 / 影响面调用方各 ≥ 1 个用例）
+   - **用 Write 工具写测试代码并落盘**到对应测试文件
+   - **用 Bash 工具真实运行**该测试文件并确保通过
+
+#### 必须返回（严格 JSON，作为子 agent 的最终回复）
+
+```json
+{
+  "source_file": "<f_i 绝对路径>",
+  "test_files_written": ["<新增/扩展的测试文件绝对路径 1>"],
+  "test_cases_added": <数字>,
+  "ran": true,
+  "passed": true,
+  "failed_cases": [],
+  "impact_callers_covered": <数字>,
+  "notes": "<basetone 红 / 需人工裁决等>"
+}
+```
+
+#### 严禁
+
+- ❌ `test_files_written` 不能为空数组 — 至少落盘 1 个测试文件
+- ❌ `ran` 必须为 true — 不跑测就声称完成不可接受
+- ❌ 不准回复"该文件不需要测试" — 既然在欠债清单里就必须写
+- ❌ 不准只描述"应该写什么测试"而不真的 Write 文件
+- ❌ 不准跳过影响面 grep — 调用方对应的测试也是子 agent 的职责
+
+> N2 在退出校验时**用 Bash 重扫文件系统**核对每个文件是否真的有对应测试落盘，**不信**子 agent 的 JSON 自我汇报。子 agent 即便撒谎说"已落盘"，N2 也会发现并重派。
 
 ## 输入
 

@@ -38,184 +38,145 @@
 
 ### 3. 测试欠债审计（支线 A —— 已完成代码缺测试 → 立即补齐）
 
-**目的**：把已经标 `[x]` 但没写过测试的 task，对应代码的测试补回来。**与步骤 4 的执行计划是独立的两件事**，无论本 feature 还有多少 `[ ]` 待开发，欠债该补就补；无论欠债多严重，待办的新 task 也照常进 N3 开发。
+**目的**：把分支上已落地代码的测试欠债补回来。**与步骤 4 的执行计划独立**，欠债该补就补，新 task 该开发还是要进 N3。
 
-#### 3.1 列出本分支上的全部代码改动文件（以 git 为权威）
+> ⚠️ 重要原则：本步骤**全部走工具调用**（Bash + Agent），**禁止**只在文本里 narrate "我将运行 / 我将派发"。每个子步骤都要有真实的工具输出做证据，否则用户根本不知道 AI 跑到哪一步、卡在哪里。
 
-**核心原则**：以 **git** 为唯一权威基准，**不**依赖 `design.md` / `requirements.md` 来圈定范围。分支上**任何代码改动**都要审计，不分"是否在某个 task 描述里"。
+#### 3.1 收集分支上的全部代码改动（用 Bash 跑，给具体命令）
 
-> ⚠️ 真实场景里，开发分支上常有大量改动**不在任何 task 范围内**：临时 bug 修复、refactor、改样式、调样板等。如果用 `design.md` 当主源去过滤，这些改动会被全部漏掉，结果就是"只给一个测试" —— 这是必须避免的反模式。
+**主体原则**：以 git 为唯一权威，不依赖 `design.md` / `requirements.md` 来圈定范围。
 
-**取四个 git 来源，全部叠加去重**（不是优先级）：
+用 Bash 工具一次性跑下面这条命令（**直接执行，不要 narrate**）：
 
-| 来源 | 命令 | 捕获什么 |
-| ---- | ---- | -------- |
-| A. 分支 vs main 已 commit 的累积改动 | `git diff --name-only $(git merge-base HEAD main)...HEAD` | 本分支所有 commit 涉及的文件（多 commit 累积） |
-| B. working tree 未 commit 改动 | `git diff --name-only HEAD` | 本地手改还没 commit 的文件 |
-| C. 已 staged 但未 commit 改动 | `git diff --name-only --cached` | 已 `git add` 但未提交的文件 |
-| D. 未跟踪（untracked）新文件 | `git ls-files --others --exclude-standard` | 新建但还没 `git add` 的代码文件 |
+```bash
+# 自动发现 base 分支（main / master / develop 之一），找不到时显式报错让用户给
+BASE=$(git rev-parse --verify --quiet main || git rev-parse --verify --quiet master || git rev-parse --verify --quiet develop)
+if [ -z "$BASE" ]; then
+  echo "ERROR: 找不到 main/master/develop 任一基线分支，请告知 base 分支名"
+  exit 1
+fi
+MERGE_BASE=$(git merge-base HEAD $BASE 2>/dev/null || echo "")
 
-**最终清单 = A ∪ B ∪ C ∪ D 去重**。
+# 四路合并
+{
+  [ -n "$MERGE_BASE" ] && git diff --name-only ${MERGE_BASE}...HEAD
+  git diff --name-only HEAD
+  git diff --name-only --cached
+  git ls-files --others --exclude-standard
+} | sort -u | grep -E '\.(ts|tsx|js|jsx|vue|svelte|py|go|rs|sol|java|kt|swift|css|scss|html)$' \
+  | grep -vE '\.(test|spec)\.|__tests__/|^tests?/|/dist/|/build/|/\.next/|/coverage/|/node_modules/'
+```
 
-**过滤规则**（仅做语言类型过滤，不做范围过滤）：
-- ✅ 保留：`.ts/.tsx/.js/.jsx/.vue/.svelte/.py/.go/.rs/.sol/.java/.kt/.swift/.css/.scss/.html` 等代码后缀
-- ❌ 剔除：`.md/.txt/.lock/LICENSE` 纯文档；测试文件本身（避免自指）；构建产物（`dist/` / `build/` / `.next/` / `coverage/`）
+**期望输出**：每行一个代码文件路径。若一行没有 → 没改动 → 直接进 3.6（无欠债）。若 Bash 报错 → 立即停止并告知用户问题，**不要静默跳过**。
 
-`design.md` / `requirements.md` 里列的"实现文件清单"**仅作分类参考**（用于在审计报告里把文件按"task 涉及 / task 外"分组展示，方便用户判断），**不允许用它把 git 里实际存在的文件过滤掉**。
+#### 3.2 扫描已有测试覆盖（用 Bash 跑）
 
-#### 3.1.x 反模式（与本步骤强相关）
+对 3.1 输出的每个文件 `f`，按命名规则查对应测试文件。给一段可执行 Bash：
 
-- ❌ **不准用 design.md / requirements.md 当主源** — task 描述追不上实际改动
-- ❌ **不准只看 `git log` 的某些 commit** —— working tree / staged / untracked 都要查，否则漏掉本地改动
-- ❌ **不准以"这不在当前 task 范围"为由跳过某些文件** —— 既然在分支上动了，就要为它写测试
-- ❌ **不准把列表给 skill 时砍短** —— A/B/C/D 去重后多少就是多少，整份传给 `tc-qa-engineer`
+```bash
+# 输入：$FILES（3.1 的输出，逐行）
+# 输出：欠债清单（没找到对应测试的文件）
+while IFS= read -r f; do
+  base=$(basename "$f")
+  stem="${base%.*}"
+  ext="${base##*.}"
+  dir=$(dirname "$f")
+  
+  # 按语言列举可能的测试文件位置
+  candidates=()
+  case "$ext" in
+    ts|tsx|js|jsx|vue|svelte)
+      candidates+=("$dir/$stem.test.$ext" "$dir/$stem.spec.$ext")
+      candidates+=("$dir/__tests__/$stem.test.$ext" "$dir/__tests__/$stem.spec.$ext")
+      candidates+=("tests/${f%.*}.test.$ext")
+      ;;
+    py)
+      candidates+=("$dir/test_$stem.py" "tests/test_$stem.py")
+      ;;
+    go) candidates+=("$dir/${stem}_test.go") ;;
+    rs) candidates+=("tests/$stem.rs") ;;
+    sol) candidates+=("test/$stem.t.sol" "test/${stem^}.t.sol") ;;
+  esac
+  
+  found=false
+  for c in "${candidates[@]}"; do
+    [ -f "$c" ] && { found=true; break; }
+  done
+  $found || echo "$f"
+done <<< "$FILES"
+```
 
-#### 3.2 比对测试覆盖
+**期望输出**：每行一个**欠债文件**路径。若空行 → 进 3.6 无欠债。
 
-对每个代码文件 `path/to/foo.ext`，检查是否存在对应测试文件（满足任一即视为有覆盖）：
-
-| 语言 | 测试文件位置 |
-| ---- | ------------ |
-| TS/JS/Vue/Svelte | 同目录 `foo.test.{ts,tsx,js,jsx}` / `foo.spec.*` / 上层 `__tests__/foo.test.*` / 镜像 `tests/<相对路径>.test.*` |
-| Python | 同目录或 `tests/` 下 `test_foo.py` / `foo_test.py` |
-| Go | 同目录 `foo_test.go` |
-| Rust | 同文件 `#[cfg(test)] mod tests` 或 `tests/foo.rs` |
-| Solidity | `test/foo.t.sol` / `test/Foo.t.sol` |
-| CSS/HTML | 至少有一个 e2e / 视觉快照 / 组件测试断言到该文件的 className 或路径 |
-
-未找到任一对应测试文件 → 标为"欠债文件"。
-
-#### 3.3 输出审计报告（强制）
-
-报告必须**按"task 内 / task 外"分组**显示，让用户一眼看到分支上是否有 tasks.md 没覆盖的改动：
+#### 3.3 输出审计报告（强制 console 输出）
 
 ```text
 🔍 测试欠债审计 — Feature {名}
-   git 来源汇总: A {N1} + B {N2} + C {N3} + D {N4} 去重 = {总数} 个代码文件
+   git 收集: {N1} 个代码文件（去重去测试去构建产物）
+   ✓ 已有测试: {M}
+   ⚠ 欠债: {K}
+     1) src/utils/format.ts
+     2) src/components/Button.tsx
+     3) src/api/user.ts
+     ...
    
-   ✓ 已有测试: {M} 个
-   ⚠ 缺测试 (欠债): {K} 个
-   
-   ┌─ 分类（仅供查看，不作过滤）
-   │
-   ├ 在 design.md / requirements.md 描述范围内（task 内）:
-   │   - components/Button.tsx
-   │   - api/user.ts
-   │
-   └ 不在 task 描述里（task 外，分支上的临时改动）:
-       - utils/format.ts        ← 注意：仍然要补测试
-       - styles/theme.scss      ← 注意：仍然要补测试
-       - components/Modal.tsx   ← 注意：仍然要补测试
+   分类（仅供参考，不影响派发）:
+   - design.md / requirements.md 范围内: {n_in} 个
+   - 分支临时改动（task 描述外）: {n_out} 个
 ```
 
-> ⚠️ "task 外"那一栏出现文件**不是异常**，分支上常有合理的临时改动；但它们**必须和 task 内的文件一视同仁**，全部进入 3.4 调 skill 补测试。如果发现"task 外"文件特别多，说明开发流程把太多事情塞进了同一分支，可向用户提示但**不能**作为跳过测试的理由。
+#### 3.4 派发计划（先输出再执行）
 
-#### 3.4 强制补齐（按文件派发子 agent，**严禁一次调用承担多文件**）
+**先**用一段文本明确"我将派发哪些子 agent、并行还是串行"，让用户在派发前看到决策：
 
-> 🔑 **结构性铁律**：欠债清单有 N 个文件，就要派发 **N 个独立子 agent 任务**，每个子 agent 只对**一个文件**负责。**严禁**把整份清单塞给一次 Skill 调用让 AI 自己挑 — 实测下来 AI 会"挑一个详细写、其它略过"，再多反模式说明也压不住偷懒倾向。
->
-> 单文件 = 单子 agent = 单测试文件落盘，三者一一对应，退出时可以机械校验。
+```text
+🚚 派发计划:
+   并行批 1（互不依赖的 utility/独立模块）:
+     · src/utils/format.ts → Agent
+     · src/utils/parse.ts → Agent
+   串行批 2（公共组件 → 调用方）:
+     · src/components/Button.tsx → Agent (先)
+     · src/pages/LoginPage.tsx → Agent (后，依赖 Button)
+   合计: {K} 个子 agent
+```
 
-##### 3.4.1 派发策略
+#### 3.5 派发子 agent（用 Agent 工具，每文件一个）
 
-对 3.3 报告里的每一个欠债文件 `f_i`（包括 task 内 + task 外两栏，全部都派），用 **Agent 工具**派发独立子 agent：
+按 3.4 的计划，**实际**用 Agent 工具发起调用。每个文件一个独立子 agent，prompt 用统一短模板（见 [skills/tc-qa-engineer/SKILL.md](../../skills/tc-qa-engineer/SKILL.md) 的「单文件子 agent 调用契约」段，N2 不再展开）：
 
 ```
 Agent(
-  description="为 <fi 文件名> 写测试",
+  description="为 <basename> 写测试",
   subagent_type="general-purpose",
-  prompt=<下面"prompt 模板">
+  prompt="参考 skills/tc-qa-engineer/SKILL.md「单文件子 agent 调用契约」执行。
+          source_file: <绝对路径>
+          specs: <requirements.md / design.md / tasks.md 绝对路径>
+          accumulated_changes: <本分支累积变更文件列表>
+          feature_finalizing: <true / false>
+          返回严格 JSON 契约，test_files_written 不能为空，ran/passed 必须 true。"
 )
 ```
 
-**并发策略**：
-- 文件之间无共享状态依赖（不同模块 / 不同公共组件 / 不同 API）→ **并行派发**（一次消息里发多个 Agent 调用）
-- 文件之间有共享状态（同模块 component + 它的 hook、API + 调用方）→ **串行**（先底层后调用方）
-- N2 自行判断分组，输出派发计划再执行
+并行批 → 一条消息里同时发 N 个 Agent 调用。串行批 → 等前批返回再发后批。
 
-##### 3.4.2 子 agent 的 prompt 模板（强制传齐）
+#### 3.6 退出校验（强制，不靠子 agent 自我汇报）
 
-```
-任务：为「单一文件」<f_i 绝对路径> 编写或扩展测试代码并落盘。
+子 agent 全部返回后，**重新跑一次 3.2 的 Bash**对清单查证：
 
-# 上下文
-- 触发原因：历史欠债补齐
-- 该文件在仓库中的位置：<f_i 绝对路径>
-- 该文件的语言/框架：<根据扩展名识别>
-- specs 路径：<requirements.md / design.md / tasks.md 绝对路径>
-- 累积变更范围：<本 feature 所有 [x] task 涉及文件清单>
-- 是否 feature 收尾：<true / false>
-
-# 你必须做的事（按顺序）
-1. 读 .claude/rules/testing.md / qa.md（如存在），跟随项目测试约定
-2. 读 specs（requirements.md 取相关 AC-xxx，design.md 取相关接口契约）
-3. 读 <f_i> 本身的实现，理解行为
-4. 影响面分析：grep 整个仓库找 <f_i> 的所有调用方/导入方，列出受影响的页面/模块
-5. 跟随 tc-qa-engineer skill 的工作流（详见 skills/tc-qa-engineer/SKILL.md）：
-   - 选定测试栈与文件命名（按项目惯例）
-   - 设计行为点（happy / 边界 / 错误 / 影响面调用方各 ≥ 1 个用例）
-   - **写测试代码并落盘**到对应测试文件
-   - 真实运行该测试文件并确保通过
-
-# 你必须返回的（严格 JSON）
-{
-  "source_file": "<f_i 绝对路径>",
-  "test_files_written": [
-    "<新增/扩展的测试文件绝对路径 1>",
-    "<新增/扩展的测试文件绝对路径 2>"
-  ],
-  "test_cases_added": <数字>,
-  "ran": true,
-  "passed": true,
-  "failed_cases": [],
-  "impact_callers_covered": <数字>,
-  "notes": "<任何需要 N2 知道的事，如基线红、需要人工裁决等>"
-}
-
-# 严禁
-- ❌ 严禁回复"该文件改动很小不需要测试" — 既然它在欠债清单里，就必须写
-- ❌ 严禁只描述"应该写什么测试"而不真的写文件
-- ❌ 严禁不跑测试就声称完成 — ran 必须为 true
-- ❌ 严禁返回 test_files_written 为空 — 至少 1 个落盘文件
-```
-
-> 💡 用 `subagent_type="general-purpose"` 而不是某个特定子 agent，是因为子 agent 内部还要走 tc-qa-engineer SKILL.md 的工作流；prompt 里显式引用 SKILL.md 即可。
-
-##### 3.4.3 收集与汇报
-
-所有子 agent 返回后，**N2 必须**逐个核对返回值：
+- 每个原欠债文件都找到对应测试文件 → ✓ 通过，进步骤 4
+- 仍缺测试的文件 → **重派最多 1 轮**
+- 1 轮重试仍缺 → **暂停并报告**，列出所有未补的文件，交用户裁决
 
 ```text
-✓ 欠债清理 — 派发 {N} 个子 agent
-   逐文件结果:
-   - utils/format.ts        → 落盘 utils/format.test.ts (5 用例) ✓
-   - components/Button.tsx  → 落盘 components/Button.test.tsx (8 用例) ✓
-   - api/user.ts            → 落盘 api/user.test.ts (12 用例) ✓
-   - styles/theme.scss      → 落盘 e2e/theme.spec.ts (3 视觉断言) ✓
-   ...
-   合计: {总用例数} 用例 / {总落盘文件数} 文件，全部跑通 ✓
-```
-
-#### 3.5 退出校验（强制兜底）
-
-派发完成后，**重新跑一次 3.2 的扫描**：对原欠债清单里的每个文件再查一次对应测试文件。
-
-- 每个文件都已找到对应测试 → 通过，进入步骤 4
-- 仍缺测试的文件 → **重新派发**子 agent 补齐（最多 1 轮重试）
-- 1 轮重试仍缺 → **暂停并报告**，列出所有仍缺的文件，交用户裁决
-
-```text
-🔍 退出校验 —
-   原清单 {N} 个文件
-   ✓ 已补 {M}
-   ⚠ 仍缺 {K}（已重新派发：filename1、filename2）
-   ↓ 重试 1 轮
-   ✓ 全部补齐 → 步骤 4
+🔍 退出校验:
+   ✓ 已补: {M}/{K}
+   ⚠ 仍缺: {K - M}（重派中...）
+   {1 轮重试结果}
    或
-   ❌ 重试后仍缺 {K1} 个 → 暂停交用户裁决
+   ❌ 重试后仍缺 {K1} 个 → 暂停
 ```
 
-#### 3.6 无欠债
+#### 3.7 无欠债（短路出口）
 
 ```text
 ✓ 测试欠债审计通过 — 所有已落地代码均有测试覆盖
