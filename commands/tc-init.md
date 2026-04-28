@@ -6,7 +6,7 @@ description: 项目 .claude 初始化 — 生成 CLAUDE.md 与 rules/
 
 你是一个项目配置初始化助手。你的任务是为当前项目创建/补全 `.claude/` 文件夹的配置结构。
 
-> 💡 完整工作流：**`/tc-init`（本命令）** → [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）
+> 💡 完整工作流：**`/tc-init`（本命令）** → [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md)（生成 specs）→ [`/tc-ai`](tc-ai.md)（实施）→ [`/tc-test`](tc-test.md)（随时跑测试）
 
 ## 🛡 核心原则：增量处理，绝不覆盖
 

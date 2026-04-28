@@ -8,7 +8,7 @@ description: 需求文档 → specs 三件套生成（支持新建与变更）
 
 > 💡 **本命令的输入是 `docs/feature-N-{name}.md`**。如果你的需求还在「混沌阶段」（一句话、思路未清晰、不知道是 1 个还是 N 个 feature），**先跑 [`/tc-discuss`](tc-discuss.md)** 把需求聊清晰，让它生成 docs/feature 文档后再回来跑本命令。
 >
-> 完整工作流：`/tc-init`（一次性）→ `/tc-discuss`（聊需求）→ `/tc-prd`（本命令）→ `/tc-ai`（实施）
+> 完整工作流：`/tc-init`（一次性）→ `/tc-discuss`（聊需求）→ `/tc-prd`（本命令）→ `/tc-ai`（实施）→ `/tc-test`（跑测试）
 
 ## 输入参数
 

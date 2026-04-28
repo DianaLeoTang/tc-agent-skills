@@ -19,10 +19,11 @@
 
 | 命令 | 用途 |
 | --- | --- |
-| `/tc-init` | 项目 `.claude` 初始化 — 生成 `CLAUDE.md` 与 `rules/` |
+| `/tc-init` | 项目 `.claude` 初始化 — 生成 `CLAUDE.md` 与 `rules/`（增量友好，不覆盖现有内容） |
 | `/tc-discuss` | 对话式需求澄清 — 一句话 + 多轮对话 → 结构化 `docs/feature-{name}.md` |
 | `/tc-prd` | 需求文档 → specs 三件套生成（支持新建与变更） |
 | `/tc-ai` | 自动开发 — 按节点流程执行 specs 任务 |
+| `/tc-test` | 跑测试 — 自动识别项目测试栈，跑现有测试套件，输出结构化报告 |
 | `/tc-ai-nodes:N1-init` … `N8-finish` | `tc-ai` 内部使用的 8 个节点子命令 |
 
 ## Skills 一览
@@ -44,8 +45,14 @@
   ↓
 /tc-ai               # 自动按节点完成开发 (内部依次调用 N1~N8)
   ↓
+/tc-test             # （可选，随时调）跑现有测试，结构化报告
+  ↓
 tc-doc-syncer        # 同步文档（由 tc-ai 自动触发或手动调用）
 ```
+
+**`/tc-test` 与 `tc-qa-engineer` 的区别**：
+- `tc-qa-engineer`（skill）— **设计** 新测试用例 + 跑测；由 `/tc-ai` 的 N6 节点自动触发
+- `/tc-test`（命令）— **只跑** 现有测试 + 结构化报告；由你随时手动调用
 
 ## 目录结构
 
@@ -58,6 +65,7 @@ tc-agent-skills/
 │   ├── tc-discuss.md
 │   ├── tc-prd.md
 │   ├── tc-ai.md
+│   ├── tc-test.md
 │   └── tc-ai-nodes/
 │       ├── N1-init.md
 │       ├── N2-enter-feature.md

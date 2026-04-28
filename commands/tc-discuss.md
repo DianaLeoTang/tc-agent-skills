@@ -285,13 +285,13 @@ docs/feature-{N}-{kebab-case-name}.md
 ## 与已有命令的关系
 
 ```
-混沌阶段                半结构化               结构化               代码
+混沌阶段                半结构化               结构化               代码                   验证
 
-[聊需求]   →   docs/feature-X.md   →   N.feature/三件套   →   实施
+[聊需求]   →   docs/feature-X.md   →   N.feature/三件套   →   实施   →   跑测试
 
-/tc-discuss     /tc-prd <path>           /tc-ai <path>
-   ↑                ↑                          ↑
-   多轮问答         读 docs                   按 specs 实施
+/tc-discuss     /tc-prd <path>           /tc-ai <path>            /tc-test
+   ↑                ↑                          ↑                       ↑
+   多轮问答         读 docs                   按 specs 实施            跑现有测试
    输出 docs        生成 specs                 调 Skills
 ```
 

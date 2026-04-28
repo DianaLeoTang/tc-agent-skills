@@ -4,7 +4,7 @@ description: 自动开发 — 按节点流程执行 specs 任务
 
 # /tc-ai — 自动开发
 
-> 💡 **本命令的输入是已生成的 specs 三件套**（由 [`/tc-prd`](tc-prd.md) 产出）。如果还没 specs，请先按完整工作流走：[`/tc-init`](tc-init.md)（一次性）→ [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md) → 本命令。
+> 💡 **本命令的输入是已生成的 specs 三件套**（由 [`/tc-prd`](tc-prd.md) 产出）。如果还没 specs，请先按完整工作流走：[`/tc-init`](tc-init.md)（一次性）→ [`/tc-discuss`](tc-discuss.md)（聊需求）→ [`/tc-prd`](tc-prd.md) → 本命令 → [`/tc-test`](tc-test.md)（开发完后随时跑测试）。
 
 `$ARGUMENTS` — specs 文件夹路径 + 代码项目路径。
 
