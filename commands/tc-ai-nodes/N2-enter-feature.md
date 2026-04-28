@@ -40,17 +40,35 @@
 
 **目的**：把已经标 `[x]` 但没写过测试的 task，对应代码的测试补回来。**与步骤 4 的执行计划是独立的两件事**，无论本 feature 还有多少 `[ ]` 待开发，欠债该补就补；无论欠债多严重，待办的新 task 也照常进 N3 开发。
 
-#### 3.1 列出本 feature 涉及的所有代码文件
+#### 3.1 列出本分支上的全部代码改动文件（以 git 为权威）
 
-按以下来源汇总（按优先级，前者为主、后者补漏）：
+**核心原则**：以 **git** 为唯一权威基准，**不**依赖 `design.md` / `requirements.md` 来圈定范围。分支上**任何代码改动**都要审计，不分"是否在某个 task 描述里"。
 
-1. `design.md` 里的"实现文件清单" / "新增/修改文件"段（如有）
-2. `requirements.md` 里的实现锚点
-3. **兜底**：用 git 找出 feature 实际改动的文件
-   - 优先：`git log --name-only --pretty="" --all -- <feature 关联路径>` 中包含 task 编号或 feature 名的 commit
-   - 再兜底：当前分支与 main 的 diff `git diff --name-only main...HEAD`
+> ⚠️ 真实场景里，开发分支上常有大量改动**不在任何 task 范围内**：临时 bug 修复、refactor、改样式、调样板等。如果用 `design.md` 当主源去过滤，这些改动会被全部漏掉，结果就是"只给一个测试" —— 这是必须避免的反模式。
 
-**过滤规则**：保留代码文件后缀（`.ts/.tsx/.js/.jsx/.vue/.svelte/.py/.go/.rs/.sol/.java/.kt/.swift/.css/.scss/.html`），剔除 `.md/.txt/.lock` 与 LICENSE 等纯文档；剔除测试文件本身（避免自指）。
+**取四个 git 来源，全部叠加去重**（不是优先级）：
+
+| 来源 | 命令 | 捕获什么 |
+| ---- | ---- | -------- |
+| A. 分支 vs main 已 commit 的累积改动 | `git diff --name-only $(git merge-base HEAD main)...HEAD` | 本分支所有 commit 涉及的文件（多 commit 累积） |
+| B. working tree 未 commit 改动 | `git diff --name-only HEAD` | 本地手改还没 commit 的文件 |
+| C. 已 staged 但未 commit 改动 | `git diff --name-only --cached` | 已 `git add` 但未提交的文件 |
+| D. 未跟踪（untracked）新文件 | `git ls-files --others --exclude-standard` | 新建但还没 `git add` 的代码文件 |
+
+**最终清单 = A ∪ B ∪ C ∪ D 去重**。
+
+**过滤规则**（仅做语言类型过滤，不做范围过滤）：
+- ✅ 保留：`.ts/.tsx/.js/.jsx/.vue/.svelte/.py/.go/.rs/.sol/.java/.kt/.swift/.css/.scss/.html` 等代码后缀
+- ❌ 剔除：`.md/.txt/.lock/LICENSE` 纯文档；测试文件本身（避免自指）；构建产物（`dist/` / `build/` / `.next/` / `coverage/`）
+
+`design.md` / `requirements.md` 里列的"实现文件清单"**仅作分类参考**（用于在审计报告里把文件按"task 涉及 / task 外"分组展示，方便用户判断），**不允许用它把 git 里实际存在的文件过滤掉**。
+
+#### 3.1.x 反模式（与本步骤强相关）
+
+- ❌ **不准用 design.md / requirements.md 当主源** — task 描述追不上实际改动
+- ❌ **不准只看 `git log` 的某些 commit** —— working tree / staged / untracked 都要查，否则漏掉本地改动
+- ❌ **不准以"这不在当前 task 范围"为由跳过某些文件** —— 既然在分支上动了，就要为它写测试
+- ❌ **不准把列表给 skill 时砍短** —— A/B/C/D 去重后多少就是多少，整份传给 `tc-qa-engineer`
 
 #### 3.2 比对测试覆盖
 
@@ -69,15 +87,28 @@
 
 #### 3.3 输出审计报告（强制）
 
+报告必须**按"task 内 / task 外"分组**显示，让用户一眼看到分支上是否有 tasks.md 没覆盖的改动：
+
 ```text
 🔍 测试欠债审计 — Feature {名}
-   本 feature 涉及代码文件: {N} 个
+   git 来源汇总: A {N1} + B {N2} + C {N3} + D {N4} 去重 = {总数} 个代码文件
+   
    ✓ 已有测试: {M} 个
    ⚠ 缺测试 (欠债): {K} 个
-     - components/Button.tsx
-     - api/user.ts
-     - ...
+   
+   ┌─ 分类（仅供查看，不作过滤）
+   │
+   ├ 在 design.md / requirements.md 描述范围内（task 内）:
+   │   - components/Button.tsx
+   │   - api/user.ts
+   │
+   └ 不在 task 描述里（task 外，分支上的临时改动）:
+       - utils/format.ts        ← 注意：仍然要补测试
+       - styles/theme.scss      ← 注意：仍然要补测试
+       - components/Modal.tsx   ← 注意：仍然要补测试
 ```
+
+> ⚠️ "task 外"那一栏出现文件**不是异常**，分支上常有合理的临时改动；但它们**必须和 task 内的文件一视同仁**，全部进入 3.4 调 skill 补测试。如果发现"task 外"文件特别多，说明开发流程把太多事情塞进了同一分支，可向用户提示但**不能**作为跳过测试的理由。
 
 #### 3.4 强制补齐（有欠债时）
 
@@ -179,3 +210,5 @@ skill 失败 / 复测仍红 → **暂停并报告**，不继续进步骤 4。
 - ❌ **不准只复述"调用 tc-qa-engineer..."不发起 Skill 工具调用** — 与 N6 的口径一致
 - ❌ **不准把"找不到测试文件"当作"不需要测试"** — 找不到就是欠债
 - ❌ **不准让用户手动判断哪些文件需要补测试** — 由 skill 的影响面分析裁定，N2 只负责把欠债清单交出去
+- ❌ **不准用 `design.md` / `requirements.md` / `tasks.md` 当过滤器** — 它们仅作分类参考。分支上 git 看到的所有代码改动都要审计，"不在 task 描述里" ≠ "不需要测试"
+- ❌ **不准只取 `git diff main...HEAD` 一路** — 必须叠加 working tree、staged、untracked 四路，不然会漏掉本地未 commit 的手改
