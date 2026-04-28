@@ -26,7 +26,7 @@ START
 [N1: 初始化] ── 解析输入、扫描 features、加载项目约束规则
   │
   ▼
-┌─► [N2: 进入 Feature] ── 读取 specs、分析依赖、输出执行计划
+┌─► [N2: 进入 Feature] ── 读取 specs、**测试欠债审计**（已落地代码缺测试 → 调 tc-qa-engineer 补齐）、分析依赖、输出执行计划
 │     │
 │     ▼
 │   ┌─► [N3: 执行 Task] ── 检查 skill → 开发
