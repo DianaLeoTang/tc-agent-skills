@@ -17,9 +17,23 @@ description: QA 工程师 Skill，对当前 task 或 feature 做功能级测试 
 
 > 💡 这三条是 N6 触发口径"不打分、改了就触发"的对应执行端 — 入口不再过滤，所以 skill 必须保证每次都真写测试，否则上层口径形同虚设。
 
-## 触发条件
+## 触发条件 & 调用模式
 
-由 `/tc-ai` 的 N6 节点对**任何代码改动**默认触发（不打分）。该 skill 不自行决定要不要跑 QA — 入口已经做过决策；入口给了就**必须**按上面三条铁律执行到底。
+由 `/tc-ai` 的 N6 / N2 节点触发，本 skill 不自行决定要不要跑 QA — 入口已经做过决策；入口给了就**必须**按上面三条铁律执行到底。
+
+**两种调用模式**（区别仅在"扫描范围"，铁律完全相同）：
+
+| 模式 | 入口 | 范围 | 单次处理 |
+| ---- | ---- | ---- | -------- |
+| 普通 task QA | N6（每个 task 后默认必触发） | 当前 task 的 `git diff` | 一次 Skill 调用处理本 task 全部 diff 文件 |
+| 历史欠债补齐 | N2（进入 feature 时审计） | N2 给出的"欠债文件清单" | **每个文件一个独立子 agent**（N2 用 Agent 工具 fan-out 派发，子 agent 内部参考本 SKILL.md 工作流），单子 agent 只对**单一文件**负责 |
+
+> 🔑 **单文件子 agent 模式（N2 派发）**：
+> - 子 agent 收到的 prompt 锁定 `source_file = <一个文件>`
+> - 子 agent 必须返回严格 JSON：`{ source_file, test_files_written: [...], test_cases_added, ran, passed, failed_cases, impact_callers_covered, notes }`
+> - `test_files_written` **不能为空数组**（至少落盘 1 个测试文件），`ran: true && passed: true` 才算通过
+> - 子 agent 不准声称"该文件不需要测试" — 既然在欠债清单里就必须写
+> - N2 在退出校验时机械核对每个文件是否真的有对应测试落盘，不信子 agent 的自我汇报
 
 ## 输入
 
