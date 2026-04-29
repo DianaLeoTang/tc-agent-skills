@@ -1,98 +1,80 @@
-# N6: QA 评估
+# N6: QA — 写测试 + 跑测试
 
-**任何代码改动都必须落地测试代码** — 不打分、不评估，改了就必触发 `tc-qa-engineer`，且必须用 Skill 工具发起真实调用。
+N3 写代码，N6 写测试。改了代码就必须调 `tc-qa-engineer` 写测试，**不打分、不做"小改动跳过"判断**。
 
-## 进入消息（强制输出）
-
-```text
-🧪 N6 QA 评估 — Task {T-编号}
-```
-
-## 触发口径（不打分，默认必触发）
-
-只要本 task 有**任何代码改动**（`git diff` 范围内存在非文档文件），就**必须**调用 `tc-qa-engineer` 写测试代码。
-
-> 💡 **为什么不打分**：再小的改动都可能引入回归。一个公共组件改一行，所有调用它的位置、对应的页面功能都可能受影响 — 这种影响面只有 `tc-qa-engineer` 进入后做调用方扫描才能发现，N6 不再做"小改动 → 跳过"的预判。
->
-> 历史的"评分 ≥ 8 才触发"机制已废弃 —— 它在多数小 task 上都打不到阈值，导致整个 feature 跑完一行测试都没补。
-
-## 跳过条件（极小白名单，其它一律触发）
-
-仅以下两种情况可跳过：
-
-| 条件 | 判定方式 |
-| ---- | -------- |
-| 本 task **零代码变更**（纯讨论 / 纯阻塞 / N3 直接 NO-OP） | `git diff --name-only` 输出为空 |
-| **仅**修改纯文档（`.md` / `.txt` / `.rst` / `LICENSE` / 注释行） | diff 文件后缀**全部**为文档类型，无任何 `.ts/.tsx/.js/.jsx/.vue/.svelte/.py/.go/.rs/.sol/.java/.kt/.swift/.css/.scss/.html/.json/.yml/.toml` 等 |
-
-> ⚠️ **不算跳过条件**（仍必须触发）：
-> - 改一行 css / 调一下 className / 改 i18n 文案 / 改图标
-> - 仅改 `package.json` / `tsconfig.json` / `vite.config.ts` 等配置（行为可能受影响）
-> - "看上去只是重命名 / 重构，没改逻辑" — 由 `tc-qa-engineer` 的影响面分析判定，不是 N6 来拍
-
-## 调用方式（强制：用 Skill 工具真调用，不准只复述）
-
-触发时**必须**使用 Skill 工具发起真实调用。**不允许**只在文本里打印"调用 tc-qa-engineer..."然后直接进 N7 — 那不算调用。
-
-调用模板：
-
-```
-Skill(skill="tc-qa-engineer", args=<把下列字段拼成一段说明传给 skill>)
-```
-
-`args` 必须传齐：
-
-- **触发原因**：`普通 task 默认必触发` / `feature 完成` / `API 变更` / `数据库 migration` / `auth/支付` / `公共组件改动`（多选）
-- **当前 task**：`T-{编号}` + 任务描述
-- **变更文件**：`git diff --name-only` 的完整列表（绝对路径）
-- **累积变更**：上次 QA 后涉及的所有 task 与文件（让 skill 做跨 task 影响面分析）
-- **specs 路径**：`requirements.md` / `design.md` / `tasks.md` 的绝对路径
-- **是否 feature 收尾**：N5 标记完成后读 `tasks.md` 校验 — 若所有 task 都 `[x]` 则 `true`，必须按 feature 收尾口径全量验收
-
-## 决策输出（强制，二选一）
-
-**触发（绝大多数情况）：**
+## 进入
 
 ```text
-🧪 触发 QA — 原因: {理由列表}
+🧪 N6 — Task {T-编号}
+```
+
+## 跳过判定（极小白名单）
+
+跑下面这段四路合并扫描。**不准只跑 `git diff --name-only`**——commit 后会输出空，把刚做完的 task 误判成"无改动"。
+
+```bash
+BASE=$(git rev-parse --verify --quiet main \
+    || git rev-parse --verify --quiet master \
+    || git rev-parse --verify --quiet develop \
+    || git rev-parse --verify --quiet origin/main \
+    || git rev-parse --verify --quiet origin/master)
+MERGE_BASE=$(git merge-base HEAD "${BASE:-HEAD}" 2>/dev/null || echo "")
+
+{
+  [ -n "$MERGE_BASE" ] && git diff --name-only "${MERGE_BASE}...HEAD"
+  git diff --name-only HEAD
+  git diff --name-only --cached
+  git ls-files --others --exclude-standard
+} | sort -u \
+  | grep -E '\.(ts|tsx|js|jsx|vue|svelte|py|go|rs|sol|java|kt|swift|css|scss|html|json|yml|toml)$' \
+  | grep -vE '\.(test|spec)\.|__tests__/|^tests?/|/dist/|/build/|/\.next/|/coverage/|/node_modules/'
+```
+
+| 输出 | 处理 |
+|---|---|
+| 空 | ⏭ 跳过（task 是讨论 / NO-OP）→ N7 |
+| 全部是文档（`.md` / `.txt` / `.rst`）| ⏭ 跳过 → N7 |
+| 有非文档代码改动 | **必触发**，调 tc-qa-engineer |
+
+## 调用 tc-qa-engineer
+
+**Skill 工具调用与说明文本必须在同一回合发出**，不准只 narrate "我将调用..." 然后下一回合再发。
+
+```
+Skill(skill="tc-qa-engineer", args="
+  触发原因: 普通 task 默认必触发 [+ feature 收尾 / API 变更 / auth/支付 / 数据库 migration / 公共组件改动]（命中即加）
+  当前 task: T-{编号} + 描述
+  变更文件: <上面四路扫描的完整列表>
+  累积变更: <自上次 QA 后的所有 task 与文件>
+  specs 路径: requirements.md / design.md / tasks.md 绝对路径
+  feature 收尾: <true / false>  # N5 标记后所有 task 都 [x] 则 true
+")
+```
+
+判定 `feature 收尾`：N5 标记完成后读 `tasks.md`，所有 task 都 `[x]` → `true`，按 feature 收尾口径全量验收 AC。
+
+## 决策输出
+
+```text
+🧪 触发 QA — 原因: {理由}
    变更文件: {N} 个
-      - {file1}
-      - {file2}
-   累积变更: {N} 个 task / {M} 个文件（自上次 QA）
-   feature 收尾: {true / false}
-   → 用 Skill 工具调用 tc-qa-engineer...
-   
-   {skill 返回后:}
-   ✓ QA 通过，新增/扩展测试 {N} 个（落盘文件: {test 文件列表}）
+   feature 收尾: {true/false}
+   → Skill(tc-qa-engineer)
+
+   {返回后:}
+   ✓ 通过 — 新增/扩展测试 {N} 个
    或
-   ⚠ 发现 {N} 个问题，已修复 → 1 轮复测通过，新增测试 {N} 个
+   ⚠ 发现 {N} 个问题 → 修复后复测 1 轮通过
    或
-   ❌ 1 轮复测仍失败 → 暂停交用户裁决（详见 skill 报告）
+   ❌ 1 轮复测仍失败 → 暂停交用户裁决
 ```
 
-**跳过（仅命中白名单）：**
+## 退出
 
 ```text
-⏭ 跳过 QA — 本 task 仅文档/注释变更，无任何运行时代码
-   变更文件: {file列表}
-```
-
-## 退出消息（强制输出）
-
-```text
-→ 进入 N7 上下文管理
+→ N7
 ```
 
 ## 复测策略
 
-QA 通过 → 继续。发现问题 → 修复后重新 QA **1 轮**。1 轮复测仍失败 → **暂停并报告**，交用户裁决，不再自动循环。
-
-> 限制 1 轮是有意为之：QA 本身已包含"读 specs + 影响面分析 + 设计用例 + 跑测 + 修复"完整 pipeline，每多一轮接近线性放大 token 消耗。1 轮复测足以兜住"自己刚改坏的小 bug"，更复杂的失败应让人介入而非让 AI 反复试。
-
-## 反模式（强禁止）
-
-- ❌ **不准用打分跳过** — 历史的 1-5 分维度评估已删除，不要复活
-- ❌ **不准只复述"调用 tc-qa-engineer..."不发起 Skill 工具调用** — 这是把 N6 退化成空文本
-- ❌ **不准把"改动看起来很小"作为跳过理由** — 影响面由 skill 决定，不是 N6
-- ❌ **不准以"上一个 task 刚 QA 过"作为跳过理由** — 每个 task 的代码改动都必须有自己的测试覆盖
-- ❌ **不准在 skill 返回前进入 N7** — 必须等 skill 完整回执（通过 / 失败 / 暂停）再决定下一步
+QA 通过 → 继续。失败 → 修复后**复测 1 轮**。1 轮仍失败 → **暂停**，不再自动循环（更复杂的失败让人介入比 AI 反复试便宜）。
