@@ -1,16 +1,21 @@
-# N6: QA — 写测试 + 跑测试
+# N6: QA — 写测试 + 跑测试 + 覆盖率
 
-N3 写代码，N6 写测试。改了代码就必须调 `tc-qa-engineer` 写测试，**不打分、不做"小改动跳过"判断**。
+**两种调用模式**：
+
+- **内部模式**：被 `/tc-ai` 流程调用（前面经过 N3/N4/N5），有 task 上下文（T-编号、specs 路径、feature 收尾标志）
+- **独立模式**：用户在任意项目里直接 `/tc-ai-nodes:N6-qa-eval`，无 task 上下文。本节点能识别"无上下文"状态自动降级，跳过 specs 相关逻辑，只做"扫描 → 写测试 → 跑测试 → 出覆盖率"
+
+行为对两种模式相同：四路扫描分支改动 → 缺测试就调 `tc-qa-engineer` 写 → 跑测 + 覆盖率。
 
 ## 进入
 
 ```text
-🧪 N6 — Task {T-编号}
+🧪 N6 — {内部: Task T-编号 / 独立: 当前分支}
 ```
 
 ## 跳过判定（极小白名单）
 
-跑下面这段四路合并扫描。**不准只跑 `git diff --name-only`**——commit 后会输出空，把刚做完的 task 误判成"无改动"。
+跑下面这段四路合并扫描。**不准只跑 `git diff --name-only`** —— commit 后会输出空被误判。
 
 ```bash
 BASE=$(git rev-parse --verify --quiet main \
@@ -32,49 +37,65 @@ MERGE_BASE=$(git merge-base HEAD "${BASE:-HEAD}" 2>/dev/null || echo "")
 
 | 输出 | 处理 |
 |---|---|
-| 空 | ⏭ 跳过（task 是讨论 / NO-OP）→ N7 |
-| 全部是文档（`.md` / `.txt` / `.rst`）| ⏭ 跳过 → N7 |
+| 空 | ⏭ 跳过 → 内部模式进 N7；独立模式直接结束 |
+| 全部是文档（`.md` / `.txt` / `.rst`）| ⏭ 跳过 |
 | 有非文档代码改动 | **必触发**，调 tc-qa-engineer |
 
 ## 调用 tc-qa-engineer
 
-**Skill 工具调用与说明文本必须在同一回合发出**，不准只 narrate "我将调用..." 然后下一回合再发。
+**Skill 调用与说明文本同一回合发出**，不准只 narrate "我将调用..." 然后下一回合再发。
+
+`args` 字段（可选项缺省就传"无"）：
+
+- **触发原因**（必填）：`普通 task 默认必触发` / `feature 收尾` / `API 变更` / `auth/支付` / `数据库 migration` / `公共组件改动` / `独立模式补测试`（命中即加）
+- **当前 task**（可选，独立模式留空）：`T-{编号}` + 描述
+- **变更文件**（必填）：上面四路扫描的完整列表
+- **累积变更**（可选，独立模式留空）：自上次 QA 后涉及的所有 task 与文件
+- **specs 路径**（可选，独立模式留空）：`requirements.md` / `design.md` / `tasks.md` 绝对路径
+- **feature 收尾**（可选，独立模式留空）：N5 后所有 task 都 `[x]` 则 `true`
+
+调用：
 
 ```
-Skill(skill="tc-qa-engineer", args="
-  触发原因: 普通 task 默认必触发 [+ feature 收尾 / API 变更 / auth/支付 / 数据库 migration / 公共组件改动]（命中即加）
-  当前 task: T-{编号} + 描述
-  变更文件: <上面四路扫描的完整列表>
-  累积变更: <自上次 QA 后的所有 task 与文件>
-  specs 路径: requirements.md / design.md / tasks.md 绝对路径
-  feature 收尾: <true / false>  # N5 标记后所有 task 都 [x] 则 true
-")
+Skill(skill="tc-qa-engineer", args="<上面字段拼成一段说明>")
 ```
 
-判定 `feature 收尾`：N5 标记完成后读 `tasks.md`，所有 task 都 `[x]` → `true`，按 feature 收尾口径全量验收 AC。
+## 跑覆盖率（写完测试、跑通后）
+
+skill 通过后，按项目实际栈跑覆盖率（自动探测，**不写新配置**）：
+
+| 栈 | 命令 |
+|---|---|
+| Vitest | `npx vitest run --coverage` |
+| Jest | `npx jest --coverage` |
+| Pytest | `pytest --cov --cov-report=term-missing` |
+| Go | `go test -cover ./...` |
+| Foundry | `forge coverage` |
+
+输出汇总到终端：lines / branches / functions 百分比 + 未达门槛文件（如 specs 里有定义门槛）。
 
 ## 决策输出
 
 ```text
 🧪 触发 QA — 原因: {理由}
    变更文件: {N} 个
-   feature 收尾: {true/false}
+   {内部模式额外: feature 收尾 true/false}
    → Skill(tc-qa-engineer)
 
    {返回后:}
    ✓ 通过 — 新增/扩展测试 {N} 个
-   或
-   ⚠ 发现 {N} 个问题 → 修复后复测 1 轮通过
-   或
-   ❌ 1 轮复测仍失败 → 暂停交用户裁决
+   或 ⚠ 修复后复测 1 轮通过
+   或 ❌ 1 轮复测仍失败 → 暂停
+
+📊 覆盖率: lines X% / branches X% / functions X%
+   未达门槛: {file 列表，如有}
 ```
 
 ## 退出
 
-```text
-→ N7
-```
+- **内部模式** → N7
+- **独立模式** → 结束（用户直接看终端报告）
 
 ## 复测策略
 
-QA 通过 → 继续。失败 → 修复后**复测 1 轮**。1 轮仍失败 → **暂停**，不再自动循环（更复杂的失败让人介入比 AI 反复试便宜）。
+QA 通过 → 继续。失败 → 修复后**复测 1 轮**。1 轮仍失败 → **暂停**。
