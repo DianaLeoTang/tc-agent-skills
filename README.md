@@ -25,6 +25,7 @@
 | `/tc-prd` | 需求文档 → specs 三件套生成（支持新建与变更） |
 | `/tc-ai` | 自动开发 — 按节点流程执行 specs 任务 |
 | `/tc-test` | 跑测试 — 自动识别项目测试栈，跑现有测试套件，输出结构化报告 |
+| `/tc-archive` | 归档已完成 feature — 把 specs 目录从主区移到 `_archive/`，强校验完成度，绝不删除 |
 | `/tc-ai-nodes:N1-init` … `N8-finish` | `tc-ai` 内部使用的 8 个节点子命令 |
 
 ## Skills 一览
@@ -52,6 +53,8 @@
 /tc-test             # （可选，随时调）跑现有测试，结构化报告
   ↓
 tc-doc-syncer        # 同步文档（由 tc-ai 自动触发或手动调用）
+  ↓
+/tc-archive          # （feature 收尾后）把已完成 feature 归档到 _archive/，主区只留进行中需求
 ```
 
 **测试相关命令/skill 边界（避免混淆）**：
@@ -76,6 +79,7 @@ tc-agent-skills/
 │   ├── tc-prd.md
 │   ├── tc-ai.md
 │   ├── tc-test.md
+│   ├── tc-archive.md
 │   └── tc-ai-nodes/
 │       ├── N1-init.md
 │       ├── N2-enter-feature.md
@@ -109,7 +113,7 @@ PLUGIN="$(pwd)"   # 在本仓库根目录执行
 LOCAL="$HOME/.claude"
 
 # 替换 commands 文件
-for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md; do
+for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md tc-archive.md; do
   rm -f "$LOCAL/commands/$f"
   ln -s "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
 done
@@ -147,7 +151,7 @@ ls -la "$LOCAL/commands/"tc-* "$LOCAL/skills/"tc-*  # 验证 symlink
 LOCAL="$HOME/.claude"
 PLUGIN="/path/to/tc-agent-skills"  # 改成本仓库实际路径
 
-for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md; do
+for f in tc-init.md tc-test-setup.md tc-prd.md tc-ai.md tc-discuss.md tc-test.md tc-archive.md; do
   rm "$LOCAL/commands/$f"
   cp "$PLUGIN/commands/$f" "$LOCAL/commands/$f"
 done
