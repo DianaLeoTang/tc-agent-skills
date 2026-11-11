@@ -63,6 +63,19 @@ tc-doc-syncer        # 同步文档（由 tc-ai 自动触发或手动调用）
 | `tc-qa-engineer` | skill | 由 `/tc-ai` N6 自动调 | **设计**业务测试用例（基于 specs AC-XXX）+ 跑测 + 闭环 bug |
 | `/tc-test` | 命令 | 用户手动随时调 | **只跑**现有测试，结构化报告 |
 
+## 在 Codex 中执行 specs
+
+需求还在讨论时，用 `/tc-discuss` 澄清业务规则，再用 `/tc-prd` 生成 specs。已有 specs 时，可以直接进入开发。每个编号功能目录应包含 `requirements.md`、`design.md` 和 `tasks.md`。
+
+在已安装 `tc-ai` skill 的 Codex 中，从代码项目打开会话并发送：
+
+```text
+$tc-ai 执行 /绝对路径/specs，代码项目是 /绝对路径/项目。
+按任务依赖实现，验证后更新 tasks.md，并记录下一项任务和阻塞。
+```
+
+涉及多个仓库时，列出各仓库的路径。在 Claude Code 中用 `/tc-agent-skills:tc-ai` 执行同一阶段。N1–N8 覆盖初始化、功能排序、实现、评审、进度更新、按风险验证、续跑记录和文档同步。中断后带同一组 specs 和项目路径重新调用，从 `tasks.md` 和已有记录恢复。
+
 ## 目录结构
 
 ```
